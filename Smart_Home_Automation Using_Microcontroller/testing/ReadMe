@@ -1,0 +1,63 @@
+# Hardware Testing Suite
+
+This directory contains isolated hardware validation scripts for the ESP32 Smart Home graduation project. By separating individual component tests from full system integration, this suite mirrors standard backend software engineering principles, ensuring each hardware module functions reliably before being orchestrated by the main application logic.
+
+## Directory Structure
+
+### 1. `Component_Testing/` (Actuators & Outputs)
+Contains individual unit tests to verify output modules independently, ensuring correct wiring and signal delivery.
+* **`Buzzer.cpp`**: Validates high/low state triggers and alarm durations.
+* **`LCD.cpp`**: Tests I2C communication (0x27 address), backlight control, and character rendering.
+* **`Relay.cpp`**: Verifies logic-level switching for external loads like the kitchen hood and fans.
+* **`Servo.cpp`**: Tests PWM signal generation and angle positioning for the physical door lock mechanism.
+
+### 2. `Sensor_Testing/` (Inputs & Telemetry)
+Contains isolated scripts to calibrate environmental sensors and verify data stream accuracy.
+* **`DHT22.cpp`**: Validates temperature and humidity floating-point readings and checks sensor response latency.
+* **`LDR.cpp`**: Calibrates the analog light readings to establish the exact 800-value threshold for outside lighting.
+* **`MQ2.cpp`**: Reads raw analog gas levels to confirm the 2500-value danger threshold and establish a safe baseline.
+* **`PIR.cpp`**: Verifies digital motion detection triggers and tests hardware-level cooldown intervals.
+* **`RFID.cpp`**: Tests SPI communication (MISO/MOSI/SCK/SDA) and validates UID tag reading from the RC522 module.
+
+### 3. `System/` (Integration Testing)
+* **`Complete_System_Testing.cpp`**: A full integration test that runs actuators and sensors concurrently. This ensures the ESP32 can handle the total power draw, verifies there are no GPIO pin conflicts, and checks that the hardware responds correctly together before applying the complex Firebase cloud synchronization logic.
+
+## Usage
+
+Because these files contain their own `setup()` and `loop()` functions, they cannot be compiled alongside the main application. To run a specific hardware test:
+
+1. Copy the contents of the desired test file (e.g., `MQ2.cpp`).
+2. Paste it into your primary `src/main.cpp`, temporarily overwriting your main application logic.
+3. Build and upload to the ESP32 via PlatformIO. 
+4. Monitor the serial output at `115200` baud to verify the hardware behavior.# Hardware Testing Suite
+
+This directory contains isolated hardware validation scripts for the ESP32 Smart Home graduation project. By separating individual component tests from full system integration, this suite mirrors standard backend software engineering principles, ensuring each hardware module functions reliably before being orchestrated by the main application logic.
+
+## Directory Structure
+
+### 1. `Component_Testing/` (Actuators & Outputs)
+Contains individual unit tests to verify output modules independently, ensuring correct wiring and signal delivery.
+* **`Buzzer.cpp`**: Validates high/low state triggers and alarm durations.
+* **`LCD.cpp`**: Tests I2C communication (0x27 address), backlight control, and character rendering.
+* **`Relay.cpp`**: Verifies logic-level switching for external loads like the kitchen hood and fans.
+* **`Servo.cpp`**: Tests PWM signal generation and angle positioning for the physical door lock mechanism.
+
+### 2. `Sensor_Testing/` (Inputs & Telemetry)
+Contains isolated scripts to calibrate environmental sensors and verify data stream accuracy.
+* **`DHT22.cpp`**: Validates temperature and humidity floating-point readings and checks sensor response latency.
+* **`LDR.cpp`**: Calibrates the analog light readings to establish the exact 800-value threshold for outside lighting.
+* **`MQ2.cpp`**: Reads raw analog gas levels to confirm the 2500-value danger threshold and establish a safe baseline.
+* **`PIR.cpp`**: Verifies digital motion detection triggers and tests hardware-level cooldown intervals.
+* **`RFID.cpp`**: Tests SPI communication (MISO/MOSI/SCK/SDA) and validates UID tag reading from the RC522 module.
+
+### 3. `System/` (Integration Testing)
+* **`Complete_System_Testing.cpp`**: A full integration test that runs actuators and sensors concurrently. This ensures the ESP32 can handle the total power draw, verifies there are no GPIO pin conflicts, and checks that the hardware responds correctly together before applying the complex Firebase cloud synchronization logic.
+
+## Usage
+
+Because these files contain their own `setup()` and `loop()` functions, they cannot be compiled alongside the main application. To run a specific hardware test:
+
+1. Copy the contents of the desired test file (e.g., `MQ2.cpp`).
+2. Paste it into your primary `src/main.cpp`, temporarily overwriting your main application logic.
+3. Build and upload to the ESP32 via PlatformIO. 
+4. Monitor the serial output at `115200` baud to verify the hardware behavior.

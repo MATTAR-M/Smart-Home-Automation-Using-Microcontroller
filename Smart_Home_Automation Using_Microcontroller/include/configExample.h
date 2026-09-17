@@ -1,0 +1,11 @@
+#pragma once
+
+// --- WiFi Credentials ---
+#define WIFI_SSID     "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+
+// --- Firebase Credentials ---
+#define DATABASE_URL  "YOUR_FIREBASE_DATABASE_URL"
+#define API_KEY       "YOUR_FIREBASE_API_KEY"
+#define USER_EMAIL    "YOUR_FIREBASE_USER_EMAIL"
+#define USER_PASSWORD "YOUR_FIREBASE_USER_PASSWORD"

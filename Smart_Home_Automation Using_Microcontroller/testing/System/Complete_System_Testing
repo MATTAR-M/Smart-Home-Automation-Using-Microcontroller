@@ -1,0 +1,247 @@
+// --- Project Librarys ---
+#include <SPI.h>
+#include <MFRC522.h>
+#include <Wire.h>
+#include "DHTesp.h"
+#include <DHT.h>
+#include <LiquidCrystal_I2C.h>
+#include <ESP32Servo.h>
+
+
+
+
+
+//  ---  Define Pins  ---
+#define SDA_PIN 27 //Data Pin for RFID
+#define RST_PIN 32 // Reset Pin for RFID
+#define Buzzer_PIN 5 // Buzzer Pin
+#define DHT22_PIN 25 //DHT22 (temp&Humd)sensor pin 
+#define D_Button_PIN 15 //DButton pin
+#define Servio_PIN 18 //Servo Motor pin
+#define PIR_PIN 17 //Pir sensor pin
+#define pirLED_PIN 26 // pir led pin
+#define FAN_PIN 19 //fan pin
+#define MQ2_PIN 35 // MQ-2 sensor pin
+#define KH_PIN 23 //kitchen hood pin
+#define LDR_PIN 33//LDR sensor pin
+#define outSideLight_PIN 16//outside light pin
+#define MoreOutSideLight_PIN 2// anthor outside light pin --> just in mquatte
+
+
+// --- Object Intialization --- 
+Servo doorServo; //Servo motor intilization
+DHTesp dhtSensor;//DHT22 intilization
+LiquidCrystal_I2C lcd(0x27,16,2);//LCD screen initialization
+MFRC522 rfid(SDA_PIN, RST_PIN);//RFID initialization
+
+
+// --- TIMING AND STATE VARIABLES ---
+unsigned long dataShowingTime = 0;  // Stores the exact moment the data is shown on the screen
+const unsigned long dataShowingDuration = 2000; // How long to show the data on the screen (2 seconds) , after this time lcd is refresing
+// unsigned long doorOpenedTime = 0;  // Stores the exact moment the door opened
+// const unsigned long doorOpenDuration = 5000; // How long to keep it open (5 seconds)
+bool isDoorOpen = false;  // Tracks if the door is currently open
+bool isDangrous = false;
+
+
+
+// --- Our Setup --- 
+void setup(){
+  Serial.begin(115200); // start channel of connection with the computer screen with 115200 bit speed in sec
+
+  doorServo.attach(Servio_PIN);
+  doorServo.write(45);// when the system start the door is closed
+
+  pinMode(D_Button_PIN, INPUT_PULLUP);// assign the DButton pin as input pullup to the microcontroller , INPUT_PULLDOWN activates an internal resistor connected to ground, ensuring the pin reads a stable LOW (0) state when no button is being pressed, preventing random electrical noise.
+  pinMode(MQ2_PIN, INPUT);// assign the MQ-2 sensor pin as input to the microcontroller
+  pinMode(KH_PIN, OUTPUT); //assign the kitchen hood pin as output
+  pinMode(PIR_PIN, INPUT); // assign the pir sensor pin as input to the microcontroller
+  pinMode(pirLED_PIN, OUTPUT);//assign the led pin as output
+  pinMode(LDR_PIN, INPUT);// assign the LDR sensor pin as input to the microcontroller
+  pinMode(outSideLight_PIN, OUTPUT);// assign the outside light pin as output to the microcontroller
+  pinMode(MoreOutSideLight_PIN, OUTPUT);// assign the anthor outside light pin as output to the microcontroller
+  pinMode(Buzzer_PIN, OUTPUT);//assing buzzer as output from the microcontroller
+  pinMode(FAN_PIN, OUTPUT);
+
+
+  SPI.begin(14, 12, 13, SDA_PIN);
+  rfid.PCD_Init();
+  Serial.println("MFRC522 Ready");
+
+  dhtSensor.setup(DHT22_PIN, DHTesp::DHT22);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("System Active");
+  lcd.setCursor(0, 1);
+  lcd.print("Door is Closed");
+  delay(500);
+}
+
+
+void loop(){ // main program loop
+  TempAndHumidity  data = dhtSensor.getTempAndHumidity();
+  Serial.println("===========================================");
+  checkDoorAccess();
+  // updateDoorTimer();
+  checkMotion();
+  checkGasLevel();
+  checkOutsideLight();
+  updateLCD(data);    // We pass the DHT data to this function
+  controlFan(data);   // We pass the DHT data here too
+  Serial.println("\n===========================================\n");
+  delay(1000); 
+}
+
+
+
+// --- Our Functions
+void checkDoorAccess() {
+
+  // Read button state (using INPUT_PULLUP → LOW means pressed)
+  bool buttonPressed = !digitalRead(D_Button_PIN);
+
+  // Check if a new RFID card is detected and read successfully
+  bool cardDetected = rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial();
+
+  // If either the button is pressed OR a valid card is scanned
+  if (buttonPressed || cardDetected) {
+
+    Serial.println("Access Triggered!");
+
+    // If access is triggered by RFID card, print its UID
+    if (cardDetected) {
+      Serial.print("Card UID:");
+      for (byte i = 0; i < rfid.uid.size; i++) {
+        Serial.print(rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
+        Serial.print(rfid.uid.uidByte[i], HEX);
+      }
+      Serial.println();
+
+      // Stop reading this card to avoid repeated scans
+      rfid.PICC_HaltA();
+    }
+
+    // Toggle door state:
+    // If door is open → close it
+    // If door is closed → open it
+    if (isDoorOpen) {
+
+      // Close the door
+      Serial.println("Closing Door...");
+      doorServo.write(45);
+      isDoorOpen = false;
+
+      // Update LCD only if no danger (e.g., gas leak)
+      if (!isDangrous) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Door Closed");
+      }
+
+    } else {
+
+      // Open the door
+      Serial.println("Opening Door...");
+      doorServo.write(170);
+      isDoorOpen = true;
+
+      // Display access message if safe
+      if (!isDangrous) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Access Granted!");
+        lcd.setCursor(0, 1);
+        lcd.print("Door is Open");
+      }
+    }
+
+    // Reset LCD timer to control refresh timing
+    dataShowingTime = millis();
+  }
+}
+
+
+
+void checkMotion() {
+ int pirValue = digitalRead(PIR_PIN);
+ if(pirValue==HIGH){ //if movment detected
+    digitalWrite(pirLED_PIN, HIGH);//turn the lights on
+    Serial.print(" Motion detected");
+  }
+  else{  //no movment detected
+    digitalWrite(pirLED_PIN, LOW);//turn the light off
+    Serial.print(" No Motion detected");
+  }
+}
+
+
+void checkGasLevel() {
+ const int gasThreshold = 3650; 
+ int gasvalue = analogRead(MQ2_PIN);//store the MQ-2 sensor reading into a variable
+ Serial.printf("\n Gas Value: %d", gasvalue);
+  if(gasvalue < gasThreshold){//if the gas value less that 700 means this is dagrous
+    isDangrous = false;
+    digitalWrite(Buzzer_PIN, LOW);//turn the alarm off
+    digitalWrite(KH_PIN, HIGH);//keep the kitchen hood off // //!! this for test --> must be low
+    Serial.print(" --> Environment safe");  
+  }
+  else{//if the gas value bigger  
+    isDangrous = true;
+    digitalWrite(Buzzer_PIN, HIGH);//turn the alarm on
+    digitalWrite(KH_PIN, HIGH);//turn on the kitchen hood
+    Serial.print(" --> Danger ! Gas leak Detected!");
+    lcd.clear(); // Clears the previous text
+    lcd.setCursor(0, 0); // row & column
+    lcd.print(" Gas leak Detected!");
+  }
+}
+
+
+void checkOutsideLight() {
+ int analogValue = 4095-analogRead(LDR_PIN);
+  Serial.print("\n Analog Value = ");
+  Serial.print(analogValue);   // the raw analog reading
+  // We'll have a few threshholds, qualitatively determined
+  if (analogValue < 40) {
+    Serial.println(" => Dark");
+    digitalWrite(outSideLight_PIN, HIGH);
+    digitalWrite(MoreOutSideLight_PIN, HIGH);
+  } else if (analogValue < 800) {
+    Serial.println(" => Dim");
+    digitalWrite(outSideLight_PIN, HIGH);
+    digitalWrite(MoreOutSideLight_PIN, HIGH);
+  } else {  
+    digitalWrite(outSideLight_PIN, LOW);//trun off the ligths
+    digitalWrite(MoreOutSideLight_PIN, LOW);//trun off the ligths
+    Serial.print(" --> No need for light ");    
+  }
+}
+
+
+void updateLCD(TempAndHumidity currentData) {
+  if(isDangrous == true){
+    return;
+  }else{
+ if(millis()-dataShowingTime >= dataShowingDuration ){
+  lcd.clear();//clearing the screen
+  lcd.setCursor(0,0);//writing from the first line on the screen
+  lcd.print("Temp: " + String(currentData.temperature, 2) + "C");//showing the temp to the user
+  lcd.setCursor(0,1);//wrting from the second line on the screen
+  lcd.print(" Humidity: " + String(currentData.humidity, 1) + "%");//showing the humd to the user
+  dataShowingTime = millis(); // Reset the timer so it waits another 2 seconds // ! added
+    }
+  }
+}
+
+
+void controlFan(TempAndHumidity currentData) {
+   if(currentData.temperature >= 9) //!! this for test --> must be 35
+   {
+      digitalWrite(FAN_PIN, HIGH);
+    }
+    else{
+    digitalWrite(FAN_PIN, LOW);      
+    }
+}
